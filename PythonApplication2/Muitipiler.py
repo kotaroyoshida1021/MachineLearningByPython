@@ -26,12 +26,12 @@ class Multipiler():
         self.beta = 0.25
     def Lagrangian(self,a):
         if(self.NCOND!=0):
-            COND = CondFunc(a)
+            COND = self.CondFunc(a)
             PenaltyFunc_ForCond = np.dot(COND,self.Lambda)+np.dot(COND**2,self.r)
         else:
             PenaltyFunc_ForCond = 0.0
         if(self.NINEQ!=0):
-            INEQ = IneqFunc(a)
+            INEQ = self.IneqFunc(a)
             TMP = self.Mu + self.s*INEQ
             def INEQ_FUNC(i):
                 if TMP[i]<0:
@@ -98,28 +98,28 @@ class Multipiler():
         return a
     #Debug
     
-def objective(a):
-    return a[0]*a[0]+a[1]*a[1]
+#def objective(a):
+#    return a[0]*a[0]+a[1]*a[1]
 
-def CondFunc(a):
-    ret = np.sum(a)-1
-    lt = [ret]
-    return np.array(lt)
+#def CondFunc(a):
+ #   ret = np.sum(a)-1
+#    lt = [ret]
+#    return np.array(lt)
 
-def IneqFunc(a):
-    return np.array([])
+#def IneqFunc(a):
+#    return np.array([])
 
-def cbf(a):
-    f = objective(a)
-    print("\r f = %f"%(f))
+#def cbf(a):
+##    f = objective(a)
+#    print("\r f = %f"%(f))
 
-def main():
-    x0 = np.array([0.0,0.0])
-    multi = Multipiler(objective,x0,"Nelder-Mead",CondFunc,IneqFunc,1,0,cbf)
-    multi.LaunchOptimize(1.0e-5)
+#def main():
+#    x0 = np.array([0.0,0.0])
+#    multi = Multipiler(objective,x0,"Nelder-Mead",CondFunc,IneqFunc,1,0,cbf)
+#    multi.LaunchOptimize(1.0e-5)
 
 
-if __name__ == '__main__':
-    main()
+#if __name__ == '__main__':
+#    main()
 
 

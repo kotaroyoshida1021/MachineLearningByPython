@@ -7,13 +7,13 @@ from scipy.linalg import block_diag
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D as ax
 
-class Coordinates(object):
-    def __init__(self,omgXi,omgEta,omgZeta,length,MAX):
+class Coordinates():
+    def __init__(self,length,MAX):
         self.NDIV = MAX
         self.length = length
-        self.omegaXi = omgXi
-        self.omegaEta = omgEta
-        self.omegaZeta = omgZeta
+       # self.omegaXi = omgXi
+        #self.omegaEta = omgEta
+        #self.omegaZeta = omgZeta
         self.Ds = self.length/float(self.NDIV-1);
         self.pos_x = np.zeros(self.NDIV)
         self.pos_y = np.zeros(self.NDIV)
@@ -27,13 +27,15 @@ class Coordinates(object):
         return dXds.flatten();
         return dXds
 
-    def DetermineAxies(self,xi0,eta0,zeta0):
+    def DetermineAxies(self,xi0,eta0,zeta0,omgXi,omgEta,omgZeta):
         
         tmp = np.array([xi0,eta0,zeta0])
         X0 = tmp.flatten()
         #print(X0)
         S = np.linspace(0.0,self.length,self.NDIV)
-        
+        self.omegaXi = omgXi
+        self.omegaEta = omgEta
+        self.omegaZeta = omgZeta
         self.X1 = odeint(self.Sdot,X0,S)
         self.XI = self.X1[:,0:3]
         self.ETA = self.X1[:,3:6]
