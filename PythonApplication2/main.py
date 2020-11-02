@@ -43,8 +43,9 @@ obj_W = Coordinates(length,NDIV)
 def dividedCoef(a):
     global ALPHA,PHI,OMG_ETA0
     ALPHA = a[0:NCOORD-2]
-    PHI = a[-1]
-    OMG_ETA0 = a[-2]
+    PHI = a[NCOORD-1]
+    OMG_ETA0 = a[NCOORD-2]
+    return ALPHA,PHI,OMG_ETA0
 
 def initialize():
     chi = 0.0
@@ -60,10 +61,9 @@ def initialize():
     zeta0_W = np.array([Cchi*Sdelta,-Schi,Cchi*Cdelta])
     obj_W.DetermineAxies(xi0_W,eta0_W,zeta0_W,omegaXiL,omegaEtaL,omegaZetaL)
     global DIFF_S
-    for i in range(1,NDIV-2):
-        for j in range(1,NDIV-2):
-            DIFF_S[i,j] = i*Ds-j*Ds      
-    print(DIFF_S.shape)
+    for i in range(1,NDIV-1):
+        for j in range(1,NDIV-1):
+            DIFF_S[i-1,j-1] = i*Ds-j*Ds      
     DIFF_S = DIFF_S**2
     PARAMS = np.loadtxt("HyperParam.txt")
     global ALPHA_PARAMS,OMG_ETA_PARAMS
@@ -96,31 +96,22 @@ def alphaSdot(s):
     else:
         return alpha(s+h)-alpha(s-h)/h
 
-def omegaEtaSdot(omgEta,s):
-    l = omgEta
+def omegaEtaSdot(f,s):
+    #omgEtaの計算はlでしている
     k = kappa(s)
+    l = k*2*math.atan(f)/math.pi
     kd = kappaSdot(s)
-    return (k**2 - l**2)*math.tan(alpha(s)) - kd*l/k
+    return ((k**2 - l**2)*math.tan(alpha(s)) - kd*l/k - kd*l/k)*(math.pi*(1+f**2)/2*k)
 
-def omegaEta(s):
-    return LinearInterpolate(s,OMG_ETA)
-
-def omegaXi(s):
-    return math.sqrt(kappa(s)**2 - omegaEta(s)**2)
-
-def omegaZeta(s):
-    return - omegaXi(s)*math.tan(alpha(s))
 
 obj_L = Coordinates(length,NDIV)
 
 def initializeForCalculation(a):
-    dividedCoef(a)
+    ALPHA,PHI,OMG_ETA0 = dividedCoef(a)
     #zeta->cos phi sin theta, sin phi sin theta, cos theta
     S = np.linspace(0,length,NDIV)
-    global OMG_ETA
-    OMG_ETA = odeint(omegaEtaSdot,OMG_ETA0,S)
-    print(type(OMG_ETA))
-    
+    F = odeint(omegaEtaSdot,OMG_ETA0,S)
+    OMG_ETA_TMP = 2.0*np.arctan(F)/math.pi
     Ctheta = zeta0_W[2]
     theta = np.arccos(zeta0_W[2])
     Stheta = np.sin(theta)
@@ -130,9 +121,21 @@ def initializeForCalculation(a):
     Spsi = np.sin(PHI)
     xi0_L = np.array([Cphi*Ctheta*Cpsi - Sphi*Spsi, Cphi*Spsi + Ctheta*Cpsi*Sphi, -Stheta*Cpsi])
     eta0_L = np.array([-Cpsi*Sphi-Ctheta*Cpsi*Sphi,Cphi*Cpsi - Ctheta*Sphi*Spsi, Stheta*Spsi])
+    def alphaVer2(s):
+    #Linear_Interpolate
+        return LinearInterpolate(s,ALPHA)
+    def omegaEta(s):
+        return kappa(s)*LinearInterpolate(s,OMG_ETA_TMP)
+
+    def omegaXi(s):
+        return math.sqrt(kappa(s)**2 - omegaEta(s)**2)
+
+    def omegaZeta(s):
+        return - omegaXi(s)*math.tan(alphaVer2(s))
+
     obj_L.DetermineAxies(xi0_L,eta0_L,zeta0_W,omegaXi,omegaEta,omegaZeta)
     
-    return obj_L,OMG_ETA
+    return obj_L,2*2.917010*OMG_ETA_TMP/np.pi
 
 
 
@@ -153,11 +156,11 @@ def RadialBasisFunc(s_i,s_j,PARAMS):
     return PARAMS[0]*np.exp(-(s_i-s_j)**2/2*PARAMS[1]**2)
 
 def RBFKernelMatrix(PARAMS):
-    RET1 = -DIFF_S/2*PARAMS[1]**2
+    RET1 = -DIFF_S/(2*PARAMS[1]**2)
     return PARAMS[0]*np.exp(RET1) + PARAMS[2]*np.identity(NDIV-2)
 
 def PartialDiff_RBFKernelMatrix(i,PARAMS):
-    RET1 = -DIFF_S/2*PARAMS[1]**2
+    RET1 = -DIFF_S/(2*PARAMS[1]**2)
     if i==0:
         return np.exp(RET1)
     elif i==1:
@@ -173,10 +176,12 @@ def PartialDiff_RBFKernelMatrixDeterminant(i,PARAMS):
     K = RBFKernelMatrix(PARAMS)
     Kdet = np.linalg.det(K)
     if(np.linalg.det(K)==0.0):
-        return 0.0
+        print("Determinant of K is Zero" + str(PARAMS))
+        Kinv = np.linalg.pinv(K)
+        return np.trace(np.dot(Kinv,Kdot))
     else:
         Kinv = np.linalg.inv(K)
-        return Kdet * np.trace(np.dot(Kinv,Kdot))
+        return np.trace(np.dot(Kinv,Kdot))
 
 #影響されないものを事前にメモ化する
 global Ka_DeterminantDiff,Ka_InvDiff,Ke_DeterminantDiff,Ke_InvDiff
@@ -190,23 +195,33 @@ def CalculateAndMemorizeKernelMatrix(PARAMS):
     return DeterminantDiff,InvDiff
 
 def CalculateCondition(a):
-    initializeForCalculation(a)
+    ALPHA,PHI,OMG_ETA0 = dividedCoef(a)
+    obj_L,OMG_ETA = initializeForCalculation(a)
     a = [Ka_DeterminantDiff[i] - np.dot(np.dot(ALPHA[1:NDIV-1].T,Ka_InvDiff[i]),ALPHA[1:NDIV-1]) for i in range(3)]
     b = [Ke_DeterminantDiff[i] - np.dot(np.dot(OMG_ETA[1:NDIV-1].T,Ke_InvDiff[i]),OMG_ETA[1:NDIV-1]) for i in range(3)]
     LikelihoodConds = a + b
-    print(LikelihoodConds)
-    return np.array(LikelihoodConds)
+    tmp = np.array(LikelihoodConds)
+    return tmp.flatten()
 def CalculationIneq(a):
     return np.array([])
-def cbf():
+global count
+count=0
+def cbf(a):
+    global count
     f = objective(a)
-    print("\r f = %f"%(f))
+    if count%100 == 0:
+        print("count = "+str(count)+ " f = %f"%(f))
+        print("===coef===")
+        print(a)
+        print("==========")
+    count = count+1
 def main():
     initialize()
     global Ka_DeterminantDiff,Ka_InvDiff,Ke_DeterminantDiff,Ke_InvDiff
+    count=0
     Ka_DeterminantDiff,Ka_InvDiff = CalculateAndMemorizeKernelMatrix(ALPHA_PARAMS)
     Ke_DeterminantDiff,Ke_InvDiff = CalculateAndMemorizeKernelMatrix(OMG_ETA_PARAMS)
-    x0 = np.zeros(NDIV)
+    x0 = math.pi*np.random.rand(NCOORD)/100000.0
     multi = Multipiler(objective,x0,"Nelder-Mead",CalculateCondition,CalculationIneq,6,0,cbf)
     multi.LaunchOptimize(1.0e-5)
 

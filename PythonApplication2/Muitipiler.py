@@ -47,7 +47,10 @@ class Multipiler():
     def LaunchOptimize(self,eps):
         for i in range(MAX):
             print("================",i,"-th iteration================")
-            a = optimize.minimize(fun=self.Lagrangian,x0=self.x0,method = self.method,callback=self.cbf,options={'xatol':1.0e-8,'fatol':1.0e-12})
+            if(self.method=="Powell"):
+                a = optimize.minimize(fun=self.Lagrangian,x0=self.x0,method = self.method,callback=self.cbf)
+            elif self.method == "Nelder-Mead":
+                a = optimize.minimize(fun=self.Lagrangian,x0=self.x0,method = self.method,callback=self.cbf,options={'adaptive': True})
             #a = optimize.minimize(self.Lagrangian,method = self.method)
             #準ニュートンおよびCGには未対応
             NCOND = self.NCOND
